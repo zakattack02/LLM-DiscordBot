@@ -1,0 +1,13 @@
+numpy
+pandas
+torch
+transformers
+openai
+discord
+scipy
+matplotlib
+seaborn
+sklearn
+requests
+bs4
+aiohttp
