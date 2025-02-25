@@ -156,7 +156,8 @@ def run_gpt_model(user_input=None):
             print(f"{chet_response}\n")
             conversation_history.append(f"{chet_response}")
 # Example usage:
-texts = load_texts_from_file('C:/Users/zak/Downloads/LLM/Models/STM32 Book.txt')
+texts = load_texts_from_file('Models/STM32 Book.txt')
+#C:\Users\zak\Downloads\LLM\LLM-DiscordBot\Models\STM32 Book.txt'
 if Train:
     train_gpt_model(texts)
 else:

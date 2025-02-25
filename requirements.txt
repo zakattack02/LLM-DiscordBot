@@ -1,0 +1,22 @@
+numpy
+pandas
+torch
+torchvision
+torchaudio
+transformers
+openai
+discord
+discord.py
+scipy
+matplotlib
+seaborn
+scikit-learn  # Changed from 'sklearn' (correct package name)
+requests
+beautifulsoup4  # Changed from 'bs4' (correct package name)
+aiohttp
+opencv-python-headless
+pillow
+pytesseract
+moviepy
+ffmpeg-python
+ultralytics  # For YOLOv8
