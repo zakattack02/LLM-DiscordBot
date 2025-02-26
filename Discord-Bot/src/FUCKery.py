@@ -19,13 +19,12 @@ import cv2
 import numpy as np
 import aiohttp
 import re
+import imageio_ffmpeg as ffmpeg
+import ffmpeg
 
 import pytesseract
 # Explicitly set the Tesseract path
 pytesseract.pytesseract.tesseract_cmd = "C:/Program Files/Tesseract-OCR/tesseract.exe"
-
-import imageio_ffmpeg as ffmpeg
-import ffmpeg
 
 
 # Load YOLOv8 model (pretrained on COCO dataset)
@@ -35,10 +34,18 @@ yolo_model = YOLO("yolov8n.pt")
 # Personality definition
 Personality = "you are Chet Gipeeti, you are an asshole, a little racist and sarcastic. Respond as such, with emojis when appropriate."
 
-# Training flag
-Train = False
-Use_Discord = True
+# Flags
+with open('Discord-Bot/src/config/config.json') as config_file:
+    config = json.load(config_file)
+    Train = config["Training"]
+    Use_Discord = config["Use_Discord"]
 
+# Global variables
+TOKEN = config_file['bot_token']
+global CHANNEL_ID
+CHANNEL_ID = None
+message_counter = 0
+recent_messages = []  # Store recent messages
 
 
 
@@ -231,12 +238,6 @@ intents.messages = True
 intents.message_content = True
 bot = commands.Bot(command_prefix=config_file['prefix'], intents=intents)
 
-# Global variables
-TOKEN = config_file['bot_token']
-global CHANNEL_ID
-CHANNEL_ID = None
-message_counter = 0
-recent_messages = []  # Store recent messages
 
 
 @bot.event

@@ -1,0 +1,6 @@
+{
+    "prefix": "/",
+    "bot_token": "BOT_TOKEN_HERE",
+    "channel_id": null,
+    "reboot_channel": null
+}
