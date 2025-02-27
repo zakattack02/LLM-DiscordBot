@@ -36,12 +36,14 @@ Personality = "you are Chet Gipeeti, you are an asshole, a little racist and sar
 
 # Flags
 with open('Discord-Bot/src/config/config.json') as config_file:
-    config = json.load(config_file)
-    Train = config["Training"]
-    Use_Discord = config["Use_Discord"]
+    config_file = json.load(config_file)
+    Train = config_file["Training"]
+    Use_Discord = config_file["Use_Discord"]
+    
 
 # Global variables
 TOKEN = config_file['bot_token']
+TENOR_API_KEY = config_file['Tenor_API']
 global CHANNEL_ID
 CHANNEL_ID = None
 message_counter = 0
@@ -114,35 +116,43 @@ async def run_gpt_model(user_input=None):
 
     return generated_text
 
-async def get_tenor_gif_url(tenor_url):
-    """ Extracts the direct GIF URL from a Tenor link. """
+def get_tenor_gif_url(tenor_url):
+    # Extract Tenor GIF ID
+    match = re.search(r"-gif-(\d+)", tenor_url)
+    if not match:
+        return "Invalid Tenor URL"
+    
+    gif_id = match.group(1)
+    
+    # Tenor API request to get GIF details
+    api_url = f"https://tenor.googleapis.com/v2/posts?ids={gif_id}&key={TENOR_API_KEY}"
+    response = requests.get(api_url)
+    
+    if response.status_code != 200:
+        return "Failed to fetch GIF from Tenor"
+    
+    data = response.json()
+    
     try:
-        async with aiohttp.ClientSession() as session:
-            async with session.get(tenor_url) as response:
-                if response.status == 200:
-                    html = await response.text()
+        gif_url = data["results"][0]["media_formats"]["gif"]["url"]
+        return gif_url
+    except (KeyError, IndexError):
+        return "No GIF found"
 
-                    # Extract direct GIF URL from the HTML response
-                    gif_url_match = re.search(r'"(https://media\.tenor\.com/[^"]+\.gif)"', html)
-                    if gif_url_match:
-                        return gif_url_match.group(1)
-
-    except Exception as e:
-        print(f"Failed to extract Tenor GIF: {e}")
-    return None
-
-# Handle Animated GIFs by extracting the first frame
-def get_first_frame(image):
-    """ Extracts the first frame from an animated GIF or returns the image itself if static. """
+# Handle Animated GIFs
+def get_frame(image):
+    """ Extracts the second frame from an animated GIF or returns the image itself if static. """
     if hasattr(image, "is_animated") and image.is_animated:
-        frame = next(ImageSequence.Iterator(image)) 
-        return frame.convert("RGB")  # Convert to standard format
-    return image.convert("RGB") 
+        frames = list(ImageSequence.Iterator(image))
+        if len(frames) > 8:
+            return frames[1].convert("RGB")  # Convert to standard format
+        return frames[0].convert("RGB")  # Fallback to the first frame if only one frame exists
+    return image.convert("RGB")
 
 # OCR (Text Extraction)
 def preprocess_image_for_ocr(image):
     """ Convert image to grayscale and apply thresholding for better OCR results. """
-    image = get_first_frame(image)
+    image = get_frame(image)
 
     img_array = np.array(image)
 
@@ -166,7 +176,7 @@ def extract_text_from_image(image):
 # Image Captioning (BLIP-2)
 def generate_image_caption(image):
     """ Generates an image caption using BLIP-2. """
-    image = get_first_frame(image)  
+    image = get_frame(image)  
 
     inputs = processor(image, return_tensors="pt").to(device)
     output = caption_model.generate(**inputs)
@@ -175,7 +185,7 @@ def generate_image_caption(image):
 # Object Detection (YOLOv8)
 def detect_objects_with_yolo(image):
     """ Runs YOLOv8 on an image and extracts detected objects with confidence scores. """
-    image = get_first_frame(image) 
+    image = get_frame(image) 
 
     img_array = np.array(image)
     
@@ -441,7 +451,7 @@ async def on_message(message):
         tenor_url_match = re.search(r'https://tenor\.com/view/[^\s]+', content)
         if tenor_url_match:
             tenor_url = tenor_url_match.group(0)
-            tenor_gif_url = await get_tenor_gif_url(tenor_url)
+            tenor_gif_url = get_tenor_gif_url(tenor_url)
             if tenor_gif_url:
                 extracted_info.append(f"🎭 **Tenor GIF:** {tenor_gif_url}")
                 # Analyze the GIF
@@ -461,7 +471,7 @@ async def on_message(message):
                 yolo_objects = detect_objects_with_yolo(gif_img)
                 extracted_info.append(f"🔍 **GIF Detected Objects:** {', '.join(yolo_objects)}")
             else:
-                extracted_info.append(f"🎭 **Tenor GIF:** [Failed to fetch direct URL]({embed.url})")
+                extracted_info.append(f"🎭 **Tenor GIF:** [Failed to fetch direct URL]({tenor_url})")
 
     full_message = f"📩 **Message:** {content}" + "\n".join(extracted_info)
     print(f'📨 Message {message_counter} in channel: {full_message}')

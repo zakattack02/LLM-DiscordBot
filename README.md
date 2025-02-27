@@ -1,6 +1,6 @@
 # Discord Bot Project
 
-This project is a simple Discord bot that can read messages from a specified channel and respond to user commands.
+This project is a versatile Discord bot that can read messages from a specified channel, respond to user commands, and perform various AI-powered tasks such as image captioning, object detection, OCR.
 
 ## Table of Contents
 
@@ -8,17 +8,12 @@ This project is a simple Discord bot that can read messages from a specified cha
 - [Configuration](#configuration)  
 - [Usage](#usage)  
 - [Features](#features)  
+- [Technologies Used](#technologies-used)  
 - [License](#license)  
 
 ## Installation
 
-1. Clone the repository:  
-   ```sh
-   git clone <repository-url>
-   cd Discord-Bot
-   ```
-
-2. Install the required dependencies:  
+1. Install the required dependencies:  
    ```sh
    pip install -r requirements.txt
    ```
@@ -41,7 +36,6 @@ or
 python restart.py
 ```
 
-
 Ensure your bot is added to a Discord server and has the necessary permissions.
 
 ## Features
@@ -49,6 +43,23 @@ Ensure your bot is added to a Discord server and has the necessary permissions.
 - Reads messages from a specified channel  
 - Supports command execution  
 - Can integrate with external AI models  
+- Image captioning using BLIP-2  
+- Object detection using YOLOv8  
+- OCR (Optical Character Recognition) using Tesseract  
+- GIF handling and analysis  
+- Video thumbnail extraction using FFmpeg  
+- Asynchronous processing to prevent blocking  
+
+## Technologies Used
+ 
+- Transformers (Hugging Face)  
+- Torch (PyTorch)  
+- PIL (Pillow)  
+- OpenCV  
+- Tesseract OCR  
+- FFmpeg  
+- YOLOv8  
+- asyncio  
 
 ## License
 

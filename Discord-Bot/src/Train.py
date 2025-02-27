@@ -3,15 +3,22 @@ import transformers
 from transformers import GPT2LMHeadModel, GPT2Tokenizer
 from torch.utils.data import DataLoader, Dataset
 from torch.optim import AdamW
+import ijson
+import os
 
 # Setup device (GPU if available, else CPU)
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-# Training function (run remotely on DigitalOcean)
-def train_gpt_model_remote(texts, epochs=3, batch_size=2, lr=5e-5):
+def train_gpt_model_remote(texts_generator, epochs=3, batch_size=2, lr=5e-5):
     tokenizer = GPT2Tokenizer.from_pretrained('gpt2')
     tokenizer.pad_token = tokenizer.eos_token
     model = GPT2LMHeadModel.from_pretrained('gpt2').to(device)
+    
+    # Create a generator to iterate through JSON file
+    with open('pol_062016-112019_labeled.ndjson', 'r') as file:
+        for item in ijson.items(file, 'item'):
+            if item:  # Skip empty items if any
+                texts.append(item['text'])
     
     # Dataset and Dataloader setup
     dataset = TextDataset(texts, tokenizer, max_length=512)
@@ -34,9 +41,10 @@ def train_gpt_model_remote(texts, epochs=3, batch_size=2, lr=5e-5):
     model.save_pretrained('trained_model')
     tokenizer.save_pretrained('trained_model')
 
-    # Optionally upload back to cloud storage
-    
+# Use ijson to load JSON file in parts and generate text data
+def load_texts_from_file(file_path):
+    with open(file_path, 'r') as file:
+        return ijson.items(file, 'item')
 
-# Load training data and trigger training
-texts = load_texts_from_file('training_data.txt')
+texts = load_texts_from_file('pol_062016-112019_labeled.ndjson')
 train_gpt_model_remote(texts)
