@@ -1,6 +1,10 @@
 {
+    "Training": false,
+    "Use_Discord": false,
+    "TraingData": "pol_0616-1119_labeled/pol_062016-112019_labeled.ndjson",
     "prefix": "/",
     "bot_token": "BOT_TOKEN_HERE",
+    "Tenor_API": "TENOR_API",
     "channel_id": null,
     "reboot_channel": null
 }
