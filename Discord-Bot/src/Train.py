@@ -2,12 +2,14 @@ import json
 import os
 import torch
 import ijson
+import psutil
 from torch.utils.data import Dataset, DataLoader
 from torch.optim import AdamW
 from transformers import GPT2LMHeadModel, GPT2Tokenizer
 
 # Setup device (GPU if available, else CPU)
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+#device = torch.device("cpu")
 
 # Function to load the configuration from the config.json file
 def load_config(config_file='Discord-Bot/src/config/config.json'):
@@ -43,15 +45,19 @@ def load_texts_from_config(config_file='Discord-Bot/src/config/config.json'):
 
     return text_generator()
 
+# Function to monitor memory usage
+def log_memory_usage():
+    process = psutil.Process(os.getpid())
+    print(f"Memory Usage: {process.memory_info().rss / 1024 ** 2:.2f} MB")
 
 # Dataset class to convert streamed texts into tokenized format
 class TextDataset(Dataset):
-    def __init__(self, text_generator, tokenizer, max_length=512, buffer_size=1000):
+    def __init__(self, text_generator, tokenizer, max_length=512, buffer_size=200):
         self.text_generator = text_generator  # Store the generator
         self.tokenizer = tokenizer
         self.max_length = max_length
-        self.buffer = []  # Buffer to store fetched items
-        self.buffer_size = buffer_size  # Limit buffer size
+        self.buffer = [] 
+        self.buffer_size = buffer_size  
 
     def _fill_buffer(self):
         """Refill buffer by pulling new data from the generator."""
@@ -63,7 +69,7 @@ class TextDataset(Dataset):
             pass  # Stop when the generator is exhausted
 
     def __len__(self):
-        return 1000000  # Arbitrary large number, as dataset streams infinitely
+        return self.buffer_size
 
     def __getitem__(self, idx):
         if not self.buffer:
@@ -83,9 +89,8 @@ class TextDataset(Dataset):
         attention_mask = encoding["attention_mask"].squeeze(0)
         return input_ids, attention_mask
 
-
 # Training function
-def train_gpt_model_remote(text_generator, epochs=3, batch_size=2, lr=5e-5):
+def train_gpt_model_remote(text_generator, epochs=3, batch_size=2, lr=5e-5, accumulation_steps=4): 
     print("Starting training...")   
     tokenizer = GPT2Tokenizer.from_pretrained('gpt2')
     tokenizer.pad_token = tokenizer.eos_token  # Set pad token to eos token
@@ -93,30 +98,33 @@ def train_gpt_model_remote(text_generator, epochs=3, batch_size=2, lr=5e-5):
 
     # Wrap generator inside the dataset class
     dataset = TextDataset(text_generator, tokenizer, max_length=512)
-    dataloader = DataLoader(dataset, batch_size=batch_size, shuffle=True, num_workers=0)
-
+    dataloader = DataLoader(dataset, batch_size=batch_size, shuffle=True) 
     optimizer = AdamW(model.parameters(), lr=lr)
     model.train()
 
     for epoch in range(epochs):
         print(f"Epoch {epoch+1}/{epochs}")   
-        for input_ids, attn_masks in dataloader:
+        optimizer.zero_grad()
+        for step, (input_ids, attn_masks) in enumerate(dataloader):
             input_ids, attn_masks = input_ids.to(device), attn_masks.to(device)
             
-            print(f"DEBUG: Forward pass started on device {device}")   
+            #print(f"DEBUG: Forward pass started on device {device}")   
 
             # Forward pass
             outputs = model(input_ids, attention_mask=attn_masks, labels=input_ids)
-            loss = outputs.loss
+            loss = outputs.loss / accumulation_steps
 
             print(f"DEBUG: Loss Computed -> {loss.item()}")   
 
             # Backward pass
             loss.backward()
-            optimizer.step()
-            optimizer.zero_grad()
             
-            print(f"Epoch: {epoch+1}, Loss: {loss.item()}")  
+            if (step + 1) % accumulation_steps == 0:
+                optimizer.step()
+                optimizer.zero_grad()
+            
+            print(f"Epoch: {epoch+1}, Step: {step+1}, Loss: {loss.item()}")  
+            log_memory_usage()
         
         # Optionally save checkpoints after each epoch
         #save_path = f"checkpoint_epoch_{epoch+1}"
@@ -129,8 +137,6 @@ def train_gpt_model_remote(text_generator, epochs=3, batch_size=2, lr=5e-5):
     model.save_pretrained('trained_model')
     tokenizer.save_pretrained('trained_model')
     print("Training complete. Final model saved.") 
-
-
 
 # Load and process the texts, then start training
 try:
