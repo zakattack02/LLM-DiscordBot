@@ -1,7 +1,6 @@
 import json
 import os
 import torch
-import ijson
 import psutil
 from torch.utils.data import Dataset, DataLoader
 from torch.optim import AdamW
@@ -9,7 +8,6 @@ from transformers import GPT2LMHeadModel, GPT2Tokenizer
 
 # Setup device (GPU if available, else CPU)
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-#device = torch.device("cpu")
 
 # Function to load the configuration from the config.json file
 def load_config(config_file='Discord-Bot/src/config/config.json'):
@@ -21,7 +19,7 @@ def load_config(config_file='Discord-Bot/src/config/config.json'):
         config = json.load(file)
     return config
 
-# Function to stream texts from large NDJSON file using ijson
+# Function to load all texts into memory
 def load_texts_from_config(config_file='Discord-Bot/src/config/config.json'):
     print(f"Loading training data from config file...")   
     config = load_config(config_file)
@@ -35,49 +33,33 @@ def load_texts_from_config(config_file='Discord-Bot/src/config/config.json'):
     if not os.path.exists(data_file_path):
         raise FileNotFoundError(f"Training data file not found at the path: {data_file_path}")
     
-    print(f"Streaming training data from {data_file_path}...")
+    print(f"Loading training data from {data_file_path} into memory...")
     
-    # Generator to stream large NDJSON file line by line
-    def text_generator():
-        with open(data_file_path, 'r') as file:
-            for line in file:
-                yield line.strip()  # Yield each line
+    # Load all texts into memory
+    texts = []
+    with open(data_file_path, 'r') as file:
+        for line in file:
+            texts.append(line.strip())  # Add each line to the list
 
-    return text_generator()
+    return texts
 
 # Function to monitor memory usage
 def log_memory_usage():
     process = psutil.Process(os.getpid())
     print(f"Memory Usage: {process.memory_info().rss / 1024 ** 2:.2f} MB")
 
-# Dataset class to convert streamed texts into tokenized format
+# Dataset class to convert texts into tokenized format
 class TextDataset(Dataset):
-    def __init__(self, text_generator, tokenizer, max_length=512, buffer_size=200):
-        self.text_generator = text_generator  # Store the generator
+    def __init__(self, texts, tokenizer, max_length=512):
+        self.texts = texts  # Store the texts
         self.tokenizer = tokenizer
         self.max_length = max_length
-        self.buffer = [] 
-        self.buffer_size = buffer_size  
-
-    def _fill_buffer(self):
-        """Refill buffer by pulling new data from the generator."""
-        try:
-            for _ in range(self.buffer_size):
-                text = next(self.text_generator)
-                self.buffer.append(text)
-        except StopIteration:
-            pass  # Stop when the generator is exhausted
 
     def __len__(self):
-        return self.buffer_size
+        return len(self.texts)
 
     def __getitem__(self, idx):
-        if not self.buffer:
-            self._fill_buffer()  # Fetch more data if buffer is empty
-            if not self.buffer:
-                raise IndexError("No more data to fetch!")  # Stop when exhausted
-
-        text = self.buffer.pop(0)  # Retrieve from buffer
+        text = self.texts[idx]  # Retrieve text by index
         encoding = self.tokenizer(
             text,
             truncation=True,
@@ -90,15 +72,16 @@ class TextDataset(Dataset):
         return input_ids, attention_mask
 
 # Training function
-def train_gpt_model_remote(text_generator, epochs=3, batch_size=2, lr=5e-5, accumulation_steps=4): 
+def train_gpt_model_remote(texts, epochs=3, batch_size=2, lr=5e-5, accumulation_steps=4, num_workers=4):
     print("Starting training...")   
     tokenizer = GPT2Tokenizer.from_pretrained('gpt2')
     tokenizer.pad_token = tokenizer.eos_token  # Set pad token to eos token
     model = GPT2LMHeadModel.from_pretrained('gpt2').to(device)
 
-    # Wrap generator inside the dataset class
-    dataset = TextDataset(text_generator, tokenizer, max_length=512)
-    dataloader = DataLoader(dataset, batch_size=batch_size, shuffle=True) 
+    # Wrap texts inside the dataset class
+    dataset = TextDataset(texts, tokenizer, max_length=512)
+    dataloader = DataLoader(dataset, batch_size=batch_size, shuffle=True, num_workers=num_workers)
+
     optimizer = AdamW(model.parameters(), lr=lr)
     model.train()
 
@@ -108,7 +91,7 @@ def train_gpt_model_remote(text_generator, epochs=3, batch_size=2, lr=5e-5, accu
         for step, (input_ids, attn_masks) in enumerate(dataloader):
             input_ids, attn_masks = input_ids.to(device), attn_masks.to(device)
             
-            #print(f"DEBUG: Forward pass started on device {device}")   
+            print(f"DEBUG: Forward pass started on device {device}")   
 
             # Forward pass
             outputs = model(input_ids, attention_mask=attn_masks, labels=input_ids)
@@ -127,11 +110,11 @@ def train_gpt_model_remote(text_generator, epochs=3, batch_size=2, lr=5e-5, accu
             log_memory_usage()
         
         # Optionally save checkpoints after each epoch
-        #save_path = f"checkpoint_epoch_{epoch+1}"
-        #if not os.path.exists(save_path):
-        #    os.makedirs(save_path)
-        #model.save_pretrained(save_path)
-        #tokenizer.save_pretrained(save_path)
+        save_path = f"checkpoint_epoch_{epoch+1}"
+        if not os.path.exists(save_path):
+            os.makedirs(save_path)
+        model.save_pretrained(save_path)
+        tokenizer.save_pretrained(save_path)
 
     # Save the final trained model
     model.save_pretrained('trained_model')
@@ -140,10 +123,9 @@ def train_gpt_model_remote(text_generator, epochs=3, batch_size=2, lr=5e-5, accu
 
 # Load and process the texts, then start training
 try:
-    text_generator = load_texts_from_config('Discord-Bot/src/config/config.json')
+    texts = load_texts_from_config('Discord-Bot/src/config/config.json')
     print(f"Training data loaded, starting the training process...")   
-    print(f"Text_Generator: {text_generator}")
-    train_gpt_model_remote(text_generator)
+    train_gpt_model_remote(texts, num_workers=4)
 except FileNotFoundError as e:
     print(f"Error: {e}")
 except ValueError as e:
