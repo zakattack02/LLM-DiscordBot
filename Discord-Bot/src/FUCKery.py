@@ -85,8 +85,12 @@ async def run_gpt_model(user_input=None):
     if torch.cuda.is_available():
         torch.backends.cudnn.benchmark = True
 
-    tokenizer = GPT2Tokenizer.from_pretrained('gpt2')
-    model = GPT2LMHeadModel.from_pretrained('gpt2').to(device)
+#    tokenizer = GPT2Tokenizer.from_pretrained('gpt2')
+#    model = GPT2LMHeadModel.from_pretrained('gpt2').to(device)
+    model_dir = 'trained_model'
+    tokenizer = GPT2Tokenizer.from_pretrained(model_dir)
+    model = GPT2LMHeadModel.from_pretrained(model_dir).to(device)
+
 
     tokenizer.pad_token = tokenizer.eos_token
     model.eval()
@@ -238,7 +242,7 @@ def extract_video_thumbnail(video_url=None, local_path=None):
 
 
 # Load configuration
-with open('Discord-Bot\src\config\config.json') as config_file:
+with open('Discord-Bot/src/config/config.json') as config_file:
     config_file = json.load(config_file)
 
 

@@ -1,4 +1,3 @@
-
 import json
 import os
 import sys
@@ -28,7 +27,7 @@ def load_texts_from_config(config_file='Discord-Bot/src/config/config.json'):
     print(f"Loading training data from config file...")   
     config = load_config(config_file)
 
-    data_file_path = config.get("TrainingData", "pol_0616-1119_labeled/pol_062016-112019_labeled.ndjson")
+    data_file_path = config.get("TrainingData")
 
     if not data_file_path:
         raise ValueError("Training data file path is missing in the config file.")
@@ -38,12 +37,28 @@ def load_texts_from_config(config_file='Discord-Bot/src/config/config.json'):
         raise FileNotFoundError(f"Training data file not found at the path: {data_file_path}")
     
     print(f"Streaming training data from {data_file_path}...")
-    
-    # Generator to stream large NDJSON file line by line
+
+    # Generator to stream approximately 6 GiB worth of lines at a time
     def text_generator():
+        #Whole file is 106 GiB
+        chunk_size =  30* 1024 ** 2  # ** GiB in bytes
+        current_chunk = []
+        current_size = 0
+
         with open(data_file_path, 'r') as file:
             for line in file:
-                yield line.strip()  # Yield each line
+                line_size = len(line.encode('utf-8'))  # Calculate size of the line in bytes
+                current_chunk.append(line.strip())
+                current_size += line_size
+
+                if current_size >= chunk_size: # If the chunk size is reached
+                    yield current_chunk
+                    current_chunk = []  # Reset the chunk
+                    current_size = 0
+
+            # Yield any remaining lines in the last chunk
+            if current_chunk:
+                yield current_chunk
 
     return text_generator()
 
@@ -54,35 +69,34 @@ def log_memory_usage():
 
 # Dataset class to convert streamed texts into tokenized format
 class TextDataset(Dataset):
-    def __init__(self, text_generator, tokenizer, max_length=512, buffer_size=200):
+    def __init__(self, text_generator, tokenizer, max_length=1024, batch_size=500, num_workers=2):
         self.text_generator = text_generator  # Store the generator
         self.tokenizer = tokenizer
         self.max_length = max_length
-        self.buffer = []  # Buffer to store fetched items
-        self.buffer_size = buffer_size  # Limit buffer size
+        self.buffer = []  # Buffer
+        self.buffer_size = batch_size*num_workers
 
     def _fill_buffer(self):
         """Refill buffer by pulling new data from the generator."""
         try:
-            for _ in range(self.buffer_size):
-                text = next(self.text_generator)
-                self.buffer.append(text)
+            while len(self.buffer) < self.buffer_size:  # Ensure buffer is filled to buffer size
+                chunk = next(self.text_generator)  # Get the next chunk
+                print(f"Fetched a new chunk with {len(chunk)} lines.")  # Debug
+                self.buffer.extend(chunk)  # Add the chunk
+            print(f"Buffer size after refill: {len(self.buffer)}")  # Debug
         except StopIteration:
-            pass  # Stop when the generator is exhausted
+            print("No more chunks to fetch.")  # Debug
 
     def __len__(self):
-        return 1000000  # Arbitrary large number, as dataset streams infinitely
-    
+        return self.buffer_size
 
     def __getitem__(self, idx):
         if not self.buffer:
-            #self._fill_buffer()  # Fetch more data if buffer is empty
-            Fluffer = sys.getsizeof(self._fill_buffer())
-            test_byte = text_byte + Fluffer
+            self._fill_buffer()
             if not self.buffer:
-                raise IndexError("No more data to fetch!")  # Stop when exhausted
+                raise IndexError("No more data to fetch!")
 
-        text = self.buffer.pop(0)  # Retrieve from buffer
+        text = self.buffer.pop(0)
         encoding = self.tokenizer(
             text,
             truncation=True,
@@ -90,65 +104,62 @@ class TextDataset(Dataset):
             max_length=self.max_length,
             return_tensors="pt",
         )
-        input_ids = encoding["input_ids"].squeeze(0)  # Remove batch dimension
+        input_ids = encoding["input_ids"].squeeze(0)
         attention_mask = encoding["attention_mask"].squeeze(0)
         return input_ids, attention_mask
 
 # Training function
-def train_gpt_model_remote(text_generator, epochs=3, batch_size=2, lr=5e-5, accumulation_steps=4, num_workers=5): 
-    print("Starting training...")   
-    tokenizer = GPT2Tokenizer.from_pretrained('gpt2')
-    tokenizer.pad_token = tokenizer.eos_token  # Set pad token to eos token
-    model = GPT2LMHeadModel.from_pretrained('gpt2').to(device)
-   
-    text_Mb= text_byte/1e+9
+def train_gpt_model_remote(text_generator, epochs=8, batch_size=2, lr=5e-5, accumulation_steps=4, num_workers=5): 
+    print("Starting training...")
+
+    # Check if a pretrained model exists
+    model_dir = os.path.abspath('trained_model') 
+    if os.path.exists(model_dir):
+        print(f"Loading pretrained model and tokenizer from {model_dir}...")
+        tokenizer = GPT2Tokenizer.from_pretrained(model_dir)
+        model = GPT2LMHeadModel.from_pretrained(model_dir).to(device)
+    else:
+        print("No pretrained model found. Initializing a new model...")
+        tokenizer = GPT2Tokenizer.from_pretrained('gpt2')
+        tokenizer.pad_token = tokenizer.eos_token  # Set pad token to eos token
+        model = GPT2LMHeadModel.from_pretrained('gpt2').to(device)
 
     # Wrap generator inside the dataset class
-    dataset = TextDataset(text_generator, tokenizer, max_length=512)
+    dataset = TextDataset(text_generator, tokenizer, max_length=1024)
     dataloader = DataLoader(dataset, batch_size=batch_size, shuffle=True, num_workers=num_workers) 
+
+    # Calculate steps per epoch after initializing the dataloader
+    steps_per_epoch = len(dataloader)
+    print(f"\033[1;33mSteps per epoch: {steps_per_epoch}\033[0m") 
+
     optimizer = AdamW(model.parameters(), lr=lr)
     model.train()
 
     for epoch in range(epochs):
-        print(f"Epoch {epoch+1}/{epochs}")   
+        print(f"\033[1;34mEpoch {epoch+1}/{epochs}\033[0m")
         optimizer.zero_grad()
         for step, (input_ids, attn_masks) in enumerate(dataloader):
             input_ids, attn_masks = input_ids.to(device), attn_masks.to(device)
-            
-            #print(f"DEBUG: Forward pass started on device {device}")   
 
             # Forward pass
             outputs = model(input_ids, attention_mask=attn_masks, labels=input_ids)
             loss = outputs.loss / accumulation_steps
 
-            print(f"DEBUG: Loss Computed -> {loss.item()}")   
+            print(f"\033[1;34mEpoch: {epoch+1}\033[0m, Step: {step+1}, Loss: {loss.item():.4f}")  
 
             # Backward pass
             loss.backward()
-            
+
             if (step + 1) % accumulation_steps == 0:
                 optimizer.step()
                 optimizer.zero_grad()
-            
-            print(f"Epoch: {epoch+1}, Step: {step+1}, Loss: {loss.item()}")  
+
             log_memory_usage()
 
-            if(text_Mb>8):
-                model.save_pretrained('trained_model')
-                tokenizer.save('trained_model')
-                print("Training complete. Model saved.")
-
-        # Optionally save checkpoints after each epoch
-        #save_path = f"checkpoint_epoch_{epoch+1}"
-        #if not os.path.exists(save_path):
-        #    os.makedirs(save_path)
-        #model.save_pretrained(save_path)
-        #tokenizer.save_pretrained(save_path)
-
-    # Save the final trained model
-    #model.save_pretrained('trained_model')
-    #tokenizer.save_pretrained('trained_model')
-    #print("Training complete. Final model saved.") 
+    # Save the final trained model and tokenizer after all epochs are completed
+    model.save_pretrained(model_dir)
+    tokenizer.save_pretrained(model_dir)
+    print(f"\033[1;32m\033[1mTRAINING COMPLETE. FINAL MODEL AND TOKENIZER SAVED AT: {model_dir}\033[0m")  # Bold Green
 
 # Load and process the texts, then start training
 try:
