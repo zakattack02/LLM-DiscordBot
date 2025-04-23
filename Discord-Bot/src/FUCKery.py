@@ -53,6 +53,7 @@ recent_messages = []  # Store recent messages
 
 # Set up device (GPU if available, else CPU)
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+#device = torch.device("cpu")
 
 # Check GPU availability
 print("CUDA Available:", torch.cuda.is_available())

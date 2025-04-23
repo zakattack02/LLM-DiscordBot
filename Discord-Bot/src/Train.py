@@ -120,7 +120,7 @@ def train_gpt_model_remote(text_generator, epochs=8, batch_size=2, lr=5e-5, accu
         model = GPT2LMHeadModel.from_pretrained(model_dir).to(device)
     else:
         print("No pretrained model found. Initializing a new model...")
-        tokenizer = GPT2Tokenizer.from_pretrained('gpt2')
+        tokenizer = GPT2Tokenizer.from_pretrained('model_dir')
         tokenizer.pad_token = tokenizer.eos_token  # Set pad token to eos token
         model = GPT2LMHeadModel.from_pretrained('gpt2').to(device)
 
