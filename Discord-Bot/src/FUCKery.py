@@ -102,6 +102,12 @@ async def run_gpt_model(user_input=None):
     # Prevent blocking
     await asyncio.sleep(0.5)
 
+    max_input_length = 1024  # Adjust based on your GPU's memory capacity
+
+    if len(user_input) > max_input_length:
+        user_input = user_input[:max_input_length]
+        print(f"Input truncated to {max_input_length} tokens.")
+
     prompt = f"{Personality}\n{user_input}"
 
     inputs = tokenizer.encode_plus(prompt, return_tensors='pt', padding=True, truncation=True).to(device)
@@ -112,7 +118,7 @@ async def run_gpt_model(user_input=None):
         inputs['input_ids'],
         attention_mask=inputs['attention_mask'],
         pad_token_id=tokenizer.eos_token_id,
-        max_length=inputs['input_ids'].shape[1] + 1008,
+        max_length=inputs['input_ids'].shape[1] + 100,
         repetition_penalty=1.2
     )
 

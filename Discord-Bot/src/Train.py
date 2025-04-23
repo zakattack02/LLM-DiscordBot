@@ -109,7 +109,7 @@ class TextDataset(Dataset):
         return input_ids, attention_mask
 
 # Training function
-def train_gpt_model_remote(text_generator, epochs=8, batch_size=2, lr=5e-5, accumulation_steps=4, num_workers=5): 
+def train_gpt_model_remote(text_generator, epochs=2, batch_size=3, lr=5e-5, accumulation_steps=4, num_workers=5): 
     print("Starting training...")
 
     # Check if a pretrained model exists
@@ -120,12 +120,12 @@ def train_gpt_model_remote(text_generator, epochs=8, batch_size=2, lr=5e-5, accu
         model = GPT2LMHeadModel.from_pretrained(model_dir).to(device)
     else:
         print("No pretrained model found. Initializing a new model...")
-        tokenizer = GPT2Tokenizer.from_pretrained('model_dir')
+        tokenizer = GPT2Tokenizer.from_pretrained('gpt2')
         tokenizer.pad_token = tokenizer.eos_token  # Set pad token to eos token
         model = GPT2LMHeadModel.from_pretrained('gpt2').to(device)
 
     # Wrap generator inside the dataset class
-    dataset = TextDataset(text_generator, tokenizer, max_length=1024)
+    dataset = TextDataset(text_generator, tokenizer)
     dataloader = DataLoader(dataset, batch_size=batch_size, shuffle=True, num_workers=num_workers) 
 
     # Calculate steps per epoch after initializing the dataloader
