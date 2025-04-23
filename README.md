@@ -9,6 +9,7 @@ This project is a versatile Discord bot that can read messages from a specified 
 - [Usage](#usage)  
 - [Features](#features)  
 - [Technologies Used](#technologies-used)  
+- [Dataset](#dataset)  
 - [Remote Training on DigitalOcean](#remote-training-on-digitalocean)  
 - [License](#license)  
 
@@ -61,6 +62,20 @@ Ensure your bot is added to a Discord server and has the necessary permissions.
 - FFmpeg  
 - YOLOv8  
 - asyncio  
+
+## Dataset
+
+### Raiders of the Lost Kek: 3.5 Years of Augmented 4chan Posts from the Politically Incorrect Board
+
+This project uses the dataset released with the paper titled: **"Raiders of the Lost Kek: 3.5 Years of Augmented 4chan Posts from the Politically Incorrect Board"**. The dataset is available on [Zenodo](https://zenodo.org/records/3606810).
+
+The dataset is a single newline-delimited JSON file. Each line in the file consists of a JSON object representing a full 4chan `/pol/` thread. The JSON objects contain all the key/values returned by the 4chan API, along with three additional keys:
+
+- **entities**: A list of named entities detected for each post using the spaCy Python library.
+- **perspectives**: Scores returned by Google’s Perspective API, including seven scores in the `[0; 1]` interval.
+- **extracted_poster_id**: A unique identifier for each poster.
+
+This dataset provides a rich source of information for analyzing 4chan `/pol/` threads, including named entity recognition and toxicity scoring.
 
 ## Remote Training on DigitalOcean
 
@@ -152,8 +167,6 @@ Once you’ve downloaded the trained model, you can integrate it back into your 
 - **DigitalOcean Droplets** are suitable for remote training. The process involves creating a droplet, SSHing into it, and uploading the training data.
 - You can **train remotely** on the droplet, then **download the trained model** to your local system for use with your bot.
 - **Dependencies** (like PyTorch and Hugging Face Transformers) need to be installed on the droplet, but once set up, the process is very similar to training locally.
-
-With this setup, you'll be able to use DigitalOcean for remote training while keeping your bot running locally or on another cloud service!
 
 ## License
 
