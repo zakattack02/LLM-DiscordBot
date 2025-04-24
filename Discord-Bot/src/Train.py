@@ -18,14 +18,14 @@ def log_memory_usage():
 # Global variable to track manual save signal
 manual_save = False  # Initialize the manual save flag
 
-# Signal handler for manual save (Ctrl+S)
+# Signal handler for manual save (Ctrl+/)
 def handle_manual_save(signum, frame):
     global manual_save
     manual_save = True
-    print("\033[1;33mManual save triggered (Ctrl+S detected).\033[0m")
+    print("\033[1;33mManual save triggered (Ctrl+/ detected).\033[0m")
 
-# Register signal handler for SIGUSR1 (Ctrl+S equivalent)
-signal.signal(signal.SIGUSR1, handle_manual_save)
+# Register signal handler for SIGQUIT (Ctrl+/ equivalent)
+signal.signal(signal.SIGQUIT, handle_manual_save)
 
 # Generator to load data in chunks 
 def load_data_in_chunks(file_path, chunk_size=10000):
