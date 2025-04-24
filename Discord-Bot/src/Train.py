@@ -1,20 +1,34 @@
 import os
 import torch
 import psutil
+import signal
 from torch.utils.data import Dataset, DataLoader
 from torch.optim import AdamW
 from transformers import GPT2LMHeadModel, GPT2Tokenizer
 
 # Setup device (GPU if available, else CPU)
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+print(f"Using device: {device}")
 
 # Function to monitor memory usage
 def log_memory_usage():
     process = psutil.Process(os.getpid())
     print(f"Memory Usage: {process.memory_info().rss / 1024 ** 2:.2f} MB")
 
-# Generator to load data in chunks from gpt2_ready_dataset.txt
-def load_data_in_chunks(file_path, chunk_size=1000):
+# Global variable to track manual save signal
+manual_save = False  # Initialize the manual save flag
+
+# Signal handler for manual save (Ctrl+S)
+def handle_manual_save(signum, frame):
+    global manual_save
+    manual_save = True
+    print("\033[1;33mManual save triggered (Ctrl+S detected).\033[0m")
+
+# Register signal handler for SIGUSR1 (Ctrl+S equivalent)
+signal.signal(signal.SIGUSR1, handle_manual_save)
+
+# Generator to load data in chunks 
+def load_data_in_chunks(file_path, chunk_size=10000):
     """
     Reads the file line by line and yields chunks of lines.
     """
@@ -53,7 +67,8 @@ class TextDataset(Dataset):
         return input_ids, attention_mask
 
 # Training function
-def train_gpt_model(file_path, epochs=2, batch_size=3, lr=5e-5, accumulation_steps=4, chunk_size=1000):
+def train_gpt_model(file_path, epochs=2, batch_size=8, lr=5e-5, accumulation_steps=4, chunk_size=1000):
+    global manual_save
     print("Starting training...")
 
     # Check if a pretrained model exists
@@ -71,13 +86,20 @@ def train_gpt_model(file_path, epochs=2, batch_size=3, lr=5e-5, accumulation_ste
     optimizer = AdamW(model.parameters(), lr=lr)
     model.train()
 
+    # Calculate total chunks and steps
+    total_chunks = sum(1 for _ in load_data_in_chunks(file_path, chunk_size))
+    print(f"\033[1;33mTotal chunks to process: {total_chunks}\033[0m")
+
     # Load data in chunks
     for epoch in range(epochs):
         print(f"\033[1;34mEpoch {epoch+1}/{epochs}\033[0m")
         for chunk_idx, data_chunk in enumerate(load_data_in_chunks(file_path, chunk_size)):
-            print(f"Processing chunk {chunk_idx + 1}...")
+            print(f"\033[1;36mProcessing chunk {chunk_idx + 1}/{total_chunks}...\033[0m")
             dataset = TextDataset(data_chunk, tokenizer)
             dataloader = DataLoader(dataset, batch_size=batch_size, shuffle=True)
+
+            total_steps = len(dataloader)
+            print(f"\033[1;33mTotal steps in chunk {chunk_idx + 1}: {total_steps}\033[0m")
 
             for step, (input_ids, attn_masks) in enumerate(dataloader):
                 input_ids, attn_masks = input_ids.to(device), attn_masks.to(device)
@@ -86,7 +108,12 @@ def train_gpt_model(file_path, epochs=2, batch_size=3, lr=5e-5, accumulation_ste
                 outputs = model(input_ids, attention_mask=attn_masks, labels=input_ids)
                 loss = outputs.loss / accumulation_steps
 
-                print(f"\033[1;34mEpoch: {epoch+1}\033[0m, Chunk: {chunk_idx+1}, Step: {step+1}, Loss: {loss.item():.4f}")
+                print(
+                    f"\033[1;34mEpoch: {epoch+1}\033[0m, "
+                    f"\033[1;33mChunk: {chunk_idx+1}/{total_chunks}\033[0m, " 
+                    f"\033[1;36mStep: {step+1}/{total_steps}\033[0m, "       
+                    f"Loss: {loss.item():.4f}"
+                )
 
                 # Backward pass
                 loss.backward()
@@ -97,7 +124,21 @@ def train_gpt_model(file_path, epochs=2, batch_size=3, lr=5e-5, accumulation_ste
 
                 log_memory_usage()
 
+            # Check for manual save signal
+            if manual_save:
+                print("\033[1;33mSaving model due to manual save request...\033[0m")
+                model.save_pretrained(model_dir)
+                tokenizer.save_pretrained(model_dir)
+                print(f"\033[1;32mModel saved at: {model_dir}\033[0m")
+                manual_save = False
+
+        # Save the model after each epoch
+        print(f"\033[1;33mSaving model after epoch {epoch+1}...\033[0m")
+        model.save_pretrained(model_dir)
+        tokenizer.save_pretrained(model_dir)
+
     # Save the final trained model and tokenizer after all epochs are completed
+    print("\033[1;33mSaving final model...\033[0m")
     model.save_pretrained(model_dir)
     tokenizer.save_pretrained(model_dir)
     print(f"\033[1;32m\033[1mTRAINING COMPLETE. FINAL MODEL AND TOKENIZER SAVED AT: {model_dir}\033[0m")  # Bold Green
