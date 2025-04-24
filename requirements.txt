@@ -7,6 +7,7 @@ transformers
 openai
 discord
 discord.py
+ijson
 scipy
 matplotlib
 seaborn

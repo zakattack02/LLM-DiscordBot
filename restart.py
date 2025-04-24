@@ -21,7 +21,7 @@ from PIL import Image
 import requests
 import io
 
-BOT_SCRIPT = "Discord-Bot\src\FUCKery.py"  # Change to your bot’s script filename
+BOT_SCRIPT = "Discord-Bot/src/FUCKery.py"  # Change to your bot’s script filename
 
 while True:
     print("🔄 Starting bot...")

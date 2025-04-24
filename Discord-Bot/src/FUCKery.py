@@ -53,6 +53,7 @@ recent_messages = []  # Store recent messages
 
 # Set up device (GPU if available, else CPU)
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+#device = torch.device("cpu")
 
 # Check GPU availability
 print("CUDA Available:", torch.cuda.is_available())
@@ -85,8 +86,12 @@ async def run_gpt_model(user_input=None):
     if torch.cuda.is_available():
         torch.backends.cudnn.benchmark = True
 
-    tokenizer = GPT2Tokenizer.from_pretrained('gpt2')
-    model = GPT2LMHeadModel.from_pretrained('gpt2').to(device)
+#    tokenizer = GPT2Tokenizer.from_pretrained('gpt2')
+#    model = GPT2LMHeadModel.from_pretrained('gpt2').to(device)
+    model_dir = 'trained_model'
+    tokenizer = GPT2Tokenizer.from_pretrained(model_dir)
+    model = GPT2LMHeadModel.from_pretrained(model_dir).to(device)
+
 
     tokenizer.pad_token = tokenizer.eos_token
     model.eval()
@@ -96,6 +101,12 @@ async def run_gpt_model(user_input=None):
 
     # Prevent blocking
     await asyncio.sleep(0.5)
+
+    max_input_length = 1024  # Adjust based on your GPU's memory capacity
+
+    if len(user_input) > max_input_length:
+        user_input = user_input[:max_input_length]
+        print(f"Input truncated to {max_input_length} tokens.")
 
     prompt = f"{Personality}\n{user_input}"
 
@@ -107,7 +118,7 @@ async def run_gpt_model(user_input=None):
         inputs['input_ids'],
         attention_mask=inputs['attention_mask'],
         pad_token_id=tokenizer.eos_token_id,
-        max_length=inputs['input_ids'].shape[1] + 1008,
+        max_length=inputs['input_ids'].shape[1] + 100,
         repetition_penalty=1.2
     )
 
@@ -238,7 +249,7 @@ def extract_video_thumbnail(video_url=None, local_path=None):
 
 
 # Load configuration
-with open('Discord-Bot\src\config\config.json') as config_file:
+with open('Discord-Bot/src/config/config.json') as config_file:
     config_file = json.load(config_file)
 
 
