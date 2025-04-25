@@ -1,0 +1,21 @@
+# Ignore everything by default
+*
+
+# Allow the Discord-Bot folder
+!Discord-Bot/
+!Discord-Bot/src/
+!Discord-Bot/src/bot.py
+!Discord-Bot/src/bot-gpt.py
+!Discord-Bot/src/FUCKery.py
+!Discord-Bot/src/Train.py
+!Convertdatatotxt.py
+!DownloadSetup.py
+#!Discord-Bot/requirements.txt
+!Discord-Bot/README.md
+!Discord-Bot/src/config
+!Discord-Bot/src/config/Example_config.json
+!LICENSE
+!restart.py
+!README.md
+!requirements.txt
+!.gitignore
