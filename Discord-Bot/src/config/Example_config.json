@@ -1,0 +1,10 @@
+{
+    "Training": "False",
+    "Use_Discord": "False",
+    "prefix": "/",
+    "bot_token": "BOT_TOKEN_HERE",
+    "Tenor_API": "TENOR_API",
+    "channel_id": null,
+    "reboot_channel": null
+}
+

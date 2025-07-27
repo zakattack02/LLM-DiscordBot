@@ -8,8 +8,6 @@
 !Discord-Bot/src/bot-gpt.py
 !Discord-Bot/src/FUCKery.py
 !Discord-Bot/src/Train.py
-!Convertdatatotxt.py
-!DownloadSetup.py
 #!Discord-Bot/requirements.txt
 !Discord-Bot/README.md
 !Discord-Bot/src/config
@@ -18,4 +16,4 @@
 !restart.py
 !README.md
 !requirements.txt
-!.gitignore
+

@@ -7,7 +7,6 @@ transformers
 openai
 discord
 discord.py
-ijson
 scipy
 matplotlib
 seaborn
@@ -21,5 +20,3 @@ pytesseract
 moviepy
 ffmpeg-python
 ultralytics  # For YOLOv8
-accelerate  # For efficient model loading
-bitsandbytes  # For 8-bit/4-bit quantization (optional)
